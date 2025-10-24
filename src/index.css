@@ -1,0 +1,16 @@
+:root{--muted:#6b7280}
+*{box-sizing:border-box}
+body{font-family:Inter,Roboto,Arial,sans-serif;margin:0;background:linear-gradient(180deg,#eef2f4,#e8eef2);display:flex;justify-content:center;padding:36px}
+.app{width:100%;max-width:1040px;background:#fff;padding:20px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.08);text-align:center}
+.controls{display:flex;gap:12px;align-items:center;justify-content:center;margin:8px 0;flex-wrap:wrap}
+.uploader input{padding:8px;border-radius:8px}
+.material-select{display:flex;gap:10px;align-items:center}
+.checkbox{display:flex;align-items:center;gap:8px}
+.text-controls{display:flex;gap:8px;justify-content:center;margin:8px 0}
+.text-controls input{padding:8px;border-radius:8px;border:1px solid #d1d9df;width:250px}
+.output{margin-top:12px;display:flex;justify-content:center}
+.preview{width:100%;max-width:960px}
+canvas{width:100%;max-width:100%;border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,0.12);background:transparent}
+.download-btn{background:#111;color:#fff;padding:8px 12px;border-radius:8px;border:none;cursor:pointer;margin-top:8px}
+.placeholder{padding:48px 0;color:var(--muted)}
+.footer{margin-top:16px;color:var(--muted);font-size:13px}
