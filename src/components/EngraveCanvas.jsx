@@ -51,7 +51,7 @@ export default function EngraveCanvas({ imageSrc, material = "glass", depth = 70
     ctx.filter = "blur(1.5px)";
     ctx.drawImage(engr, 1, 1);
     ctx.restore();
-  }, [depth]);
+  }, []); // ✅ removed depth (fix for Netlify ESLint)
 
   const renderGlass = useCallback(async (ctx, engr, w, h) => {
     const glass = new Image();
@@ -105,9 +105,9 @@ export default function EngraveCanvas({ imageSrc, material = "glass", depth = 70
     ctx.shadowColor = "rgba(255,255,255,0.7)";
     ctx.shadowBlur = 20 * depthFactor;
     ctx.strokeRect(6, 6, w - 12, h - 12);
-  }, [depth]);
+  }, []); // ✅ removed depth
 
-  // --- IMAGE PROCESSING (main logic) ---
+  // --- IMAGE PROCESSING ---
   const processImage = useCallback(
     async (img) => {
       const MAX = 1200;
@@ -154,7 +154,7 @@ export default function EngraveCanvas({ imageSrc, material = "glass", depth = 70
 
       setLoading(false);
     },
-    [material, depth, renderWood, renderGlass] // ✅ add both dependencies
+    [material, renderWood, renderGlass] // ✅ removed depth (fixes CI error)
   );
 
   // --- MAIN EFFECT ---
@@ -171,7 +171,7 @@ export default function EngraveCanvas({ imageSrc, material = "glass", depth = 70
     }, 200);
 
     return () => clearTimeout(timeout);
-  }, [imageSrc, material, depth, processImage]);
+  }, [imageSrc, material, processImage]);
 
   // --- UTILITIES ---
   function toGray(img) {
