@@ -5,7 +5,109 @@ export default function EngraveCanvas({ imageSrc, material = "glass", depth = 70
   const previewRef = useRef();
   const [loading, setLoading] = useState(false);
 
-  // ✅ Wrap processImage in useCallback to fix ESLint dependency warning
+  // --- MATERIAL EFFECTS ---
+
+  const renderWood = useCallback(async (ctx, engr, w, h) => {
+    const wood = new Image();
+    wood.crossOrigin = "anonymous";
+    wood.src = "/wood_texture.jpg";
+    await new Promise((r) => {
+      wood.onload = r;
+      wood.onerror = r;
+    });
+
+    ctx.drawImage(wood, 0, 0, w, h);
+    const depthFactor = depth / 100;
+    const ectx = engr.getContext("2d");
+    const ed = ectx.getImageData(0, 0, w, h).data;
+
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = w;
+    tempCanvas.height = h;
+    const tctx = tempCanvas.getContext("2d");
+    const burnImg = tctx.createImageData(w, h);
+    const bd = burnImg.data;
+
+    for (let i = 0; i < ed.length; i += 4) {
+      const brightness = ed[i];
+      const burnDepth = Math.pow((255 - brightness) / 255, 1.5 + depthFactor);
+      const alpha = burnDepth * 255 * depthFactor;
+
+      bd[i] = 80 - 50 * burnDepth;
+      bd[i + 1] = 50 - 30 * burnDepth;
+      bd[i + 2] = 20 - 10 * burnDepth;
+      bd[i + 3] = alpha;
+    }
+
+    tctx.putImageData(burnImg, 0, 0);
+
+    ctx.save();
+    ctx.globalCompositeOperation = "multiply";
+    ctx.drawImage(tempCanvas, 0, 0);
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = 0.25 * depthFactor;
+    ctx.filter = "blur(1.5px)";
+    ctx.drawImage(engr, 1, 1);
+    ctx.restore();
+  }, [depth]);
+
+  const renderGlass = useCallback(async (ctx, engr, w, h) => {
+    const glass = new Image();
+    glass.crossOrigin = "anonymous";
+    glass.src = "/glass_texture.jpeg";
+    await new Promise((r) => {
+      glass.onload = r;
+      glass.onerror = r;
+    });
+
+    const depthFactor = depth / 100;
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, "#eef3f8");
+    grad.addColorStop(1, "#c9d2da");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.globalAlpha = 0.2;
+    ctx.drawImage(glass, 0, 0, w, h);
+    ctx.globalAlpha = 1;
+
+    const ectx = engr.getContext("2d");
+    const ed = ectx.getImageData(0, 0, w, h).data;
+    const frost = ctx.createImageData(w, h);
+
+    for (let i = 0; i < ed.length; i += 4) {
+      const brightness = ed[i];
+      const frostAlpha = Math.pow((255 - brightness) / 255, 1.5 + depthFactor);
+      frost.data[i] = 255;
+      frost.data[i + 1] = 255;
+      frost.data[i + 2] = 255;
+      frost.data[i + 3] = frostAlpha * 255 * depthFactor;
+    }
+
+    const frostCanvas = document.createElement("canvas");
+    frostCanvas.width = w;
+    frostCanvas.height = h;
+    frostCanvas.getContext("2d").putImageData(frost, 0, 0);
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.filter = `blur(${2 + depthFactor * 2}px)`;
+    ctx.globalAlpha = 0.6 + depthFactor * 0.3;
+    ctx.drawImage(frostCanvas, 0, 0);
+    ctx.filter = "none";
+    ctx.drawImage(frostCanvas, 0, 0);
+    ctx.restore();
+
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = "rgba(255,255,255,0.8)";
+    ctx.shadowColor = "rgba(255,255,255,0.7)";
+    ctx.shadowBlur = 20 * depthFactor;
+    ctx.strokeRect(6, 6, w - 12, h - 12);
+  }, [depth]);
+
+  // --- IMAGE PROCESSING (main logic) ---
   const processImage = useCallback(
     async (img) => {
       const MAX = 1200;
@@ -52,10 +154,10 @@ export default function EngraveCanvas({ imageSrc, material = "glass", depth = 70
 
       setLoading(false);
     },
-    [material, depth] // ✅ dependencies
+    [material, depth, renderWood, renderGlass] // ✅ add both dependencies
   );
 
-  // ✅ Hook with processImage dependency included
+  // --- MAIN EFFECT ---
   useEffect(() => {
     if (!imageSrc) return;
     setLoading(true);
@@ -70,109 +172,6 @@ export default function EngraveCanvas({ imageSrc, material = "glass", depth = 70
 
     return () => clearTimeout(timeout);
   }, [imageSrc, material, depth, processImage]);
-
-  // --- MATERIAL EFFECTS ---
-  async function renderWood(ctx, engr, w, h) {
-    const wood = new Image();
-    wood.crossOrigin = "anonymous";
-    wood.src = "/wood_texture.jpg";
-    await new Promise((r) => {
-      wood.onload = r;
-      wood.onerror = r;
-    });
-
-    ctx.drawImage(wood, 0, 0, w, h);
-
-    const depthFactor = depth / 100;
-    const ectx = engr.getContext("2d");
-    const ed = ectx.getImageData(0, 0, w, h).data;
-
-    const tempCanvas = document.createElement("canvas");
-    tempCanvas.width = w;
-    tempCanvas.height = h;
-    const tctx = tempCanvas.getContext("2d");
-    const burnImg = tctx.createImageData(w, h);
-    const bd = burnImg.data;
-
-    for (let i = 0; i < ed.length; i += 4) {
-      const brightness = ed[i];
-      const burnDepth = Math.pow((255 - brightness) / 255, 1.5 + depthFactor);
-      const alpha = burnDepth * 255 * depthFactor;
-
-      bd[i] = 80 - 50 * burnDepth;
-      bd[i + 1] = 50 - 30 * burnDepth;
-      bd[i + 2] = 20 - 10 * burnDepth;
-      bd[i + 3] = alpha;
-    }
-
-    tctx.putImageData(burnImg, 0, 0);
-
-    ctx.save();
-    ctx.globalCompositeOperation = "multiply";
-    ctx.drawImage(tempCanvas, 0, 0);
-    ctx.restore();
-
-    ctx.save();
-    ctx.globalAlpha = 0.25 * depthFactor;
-    ctx.filter = "blur(1.5px)";
-    ctx.drawImage(engr, 1, 1);
-    ctx.restore();
-  }
-
-  async function renderGlass(ctx, engr, w, h) {
-    const glass = new Image();
-    glass.crossOrigin = "anonymous";
-    glass.src = "/glass_texture.jpeg";
-    await new Promise((r) => {
-      glass.onload = r;
-      glass.onerror = r;
-    });
-
-    const depthFactor = depth / 100;
-
-    const grad = ctx.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, "#eef3f8");
-    grad.addColorStop(1, "#c9d2da");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, w, h);
-
-    ctx.globalAlpha = 0.2;
-    ctx.drawImage(glass, 0, 0, w, h);
-    ctx.globalAlpha = 1;
-
-    const ectx = engr.getContext("2d");
-    const ed = ectx.getImageData(0, 0, w, h).data;
-    const frost = ctx.createImageData(w, h);
-
-    for (let i = 0; i < ed.length; i += 4) {
-      const brightness = ed[i];
-      const frostAlpha = Math.pow((255 - brightness) / 255, 1.5 + depthFactor);
-      frost.data[i] = 255;
-      frost.data[i + 1] = 255;
-      frost.data[i + 2] = 255;
-      frost.data[i + 3] = frostAlpha * 255 * depthFactor;
-    }
-
-    const frostCanvas = document.createElement("canvas");
-    frostCanvas.width = w;
-    frostCanvas.height = h;
-    frostCanvas.getContext("2d").putImageData(frost, 0, 0);
-
-    ctx.save();
-    ctx.globalCompositeOperation = "screen";
-    ctx.filter = `blur(${2 + depthFactor * 2}px)`;
-    ctx.globalAlpha = 0.6 + depthFactor * 0.3;
-    ctx.drawImage(frostCanvas, 0, 0);
-    ctx.filter = "none";
-    ctx.drawImage(frostCanvas, 0, 0);
-    ctx.restore();
-
-    ctx.lineWidth = 8;
-    ctx.strokeStyle = "rgba(255,255,255,0.8)";
-    ctx.shadowColor = "rgba(255,255,255,0.7)";
-    ctx.shadowBlur = 20 * depthFactor;
-    ctx.strokeRect(6, 6, w - 12, h - 12);
-  }
 
   // --- UTILITIES ---
   function toGray(img) {
@@ -215,7 +214,7 @@ export default function EngraveCanvas({ imageSrc, material = "glass", depth = 70
   }
 
   // --- DOWNLOAD HANDLERS ---
-  function handleDownload() {
+  const handleDownload = () => {
     const canvas = previewRef.current;
     if (!canvas) return;
     const link = document.createElement("a");
@@ -223,9 +222,9 @@ export default function EngraveCanvas({ imageSrc, material = "glass", depth = 70
     link.download = `engraved_${material}_${timestamp}.png`;
     link.href = canvas.toDataURL("image/png");
     link.click();
-  }
+  };
 
-  function handleTransparentDownload() {
+  const handleTransparentDownload = () => {
     const canvas = previewRef.current;
     if (!canvas) return;
 
@@ -268,7 +267,7 @@ export default function EngraveCanvas({ imageSrc, material = "glass", depth = 70
     link.download = `engraved_${material}_transparent_${timestamp}.png`;
     link.href = offCanvas.toDataURL("image/png");
     link.click();
-  }
+  };
 
   // --- RENDER ---
   return (
