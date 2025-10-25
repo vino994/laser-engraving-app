@@ -5,25 +5,26 @@ export default function EngraveCanvas({ imageSrc, material = "glass", depth = 70
   const previewRef = useRef();
   const [loading, setLoading] = useState(false);
 
-useEffect(() => {
-  if (!imageSrc) return;
-  setLoading(true);
+  useEffect(() => {
+    if (!imageSrc) return;
+    setLoading(true);
 
-  const timeout = setTimeout(() => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => process(img);
-    img.onerror = () => setLoading(false);
-    img.src = imageSrc;
-  }, 200); // delay small updates
+    const timeout = setTimeout(() => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => processImage(img); // ✅ renamed here
+      img.onerror = () => setLoading(false);
+      img.src = imageSrc;
+    }, 200); // delay small updates
 
-  return () => clearTimeout(timeout);
-}, [imageSrc, material, depth]);
+    return () => clearTimeout(timeout);
+  }, [imageSrc, material, depth]);
 
-
-  async function process(img) {
+  // ✅ renamed from process() → processImage()
+  async function processImage(img) {
     const MAX = 1200;
-    let w = img.width, h = img.height;
+    let w = img.width,
+      h = img.height;
     const scale = Math.min(1, MAX / Math.max(w, h));
     w = Math.round(w * scale);
     h = Math.round(h * scale);
@@ -67,116 +68,112 @@ useEffect(() => {
   }
 
   // --- MATERIAL EFFECTS ---
-async function renderWood(ctx, engr, w, h) {
-  const wood = new Image();
-  wood.crossOrigin = "anonymous";
-  wood.src = "/wood_texture.jpg";
-  await new Promise((r) => {
-    wood.onload = r;
-    wood.onerror = r;
-  });
+  async function renderWood(ctx, engr, w, h) {
+    const wood = new Image();
+    wood.crossOrigin = "anonymous";
+    wood.src = "/wood_texture.jpg";
+    await new Promise((r) => {
+      wood.onload = r;
+      wood.onerror = r;
+    });
 
-  // Draw wood background
-  ctx.drawImage(wood, 0, 0, w, h);
+    // Draw wood background
+    ctx.drawImage(wood, 0, 0, w, h);
 
-  // Engraving intensity from slider
-  const depthFactor = depth / 100;
+    // Engraving intensity from slider
+    const depthFactor = depth / 100;
 
-  const ectx = engr.getContext("2d");
-  const ed = ectx.getImageData(0, 0, w, h).data;
-  const tempCanvas = document.createElement("canvas");
-  tempCanvas.width = w;
-  tempCanvas.height = h;
-  const tctx = tempCanvas.getContext("2d");
-  const burnImg = tctx.createImageData(w, h);
-  const bd = burnImg.data;
+    const ectx = engr.getContext("2d");
+    const ed = ectx.getImageData(0, 0, w, h).data;
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = w;
+    tempCanvas.height = h;
+    const tctx = tempCanvas.getContext("2d");
+    const burnImg = tctx.createImageData(w, h);
+    const bd = burnImg.data;
 
-  for (let i = 0; i < ed.length; i += 4) {
-    const brightness = ed[i];
-    const burnDepth = Math.pow((255 - brightness) / 255, 1.5 + depthFactor);
-    const alpha = burnDepth * 255 * depthFactor;
+    for (let i = 0; i < ed.length; i += 4) {
+      const brightness = ed[i];
+      const burnDepth = Math.pow((255 - brightness) / 255, 1.5 + depthFactor);
+      const alpha = burnDepth * 255 * depthFactor;
 
-    bd[i] = 80 - 50 * burnDepth;
-    bd[i + 1] = 50 - 30 * burnDepth;
-    bd[i + 2] = 20 - 10 * burnDepth;
-    bd[i + 3] = alpha;
+      bd[i] = 80 - 50 * burnDepth;
+      bd[i + 1] = 50 - 30 * burnDepth;
+      bd[i + 2] = 20 - 10 * burnDepth;
+      bd[i + 3] = alpha;
+    }
+
+    tctx.putImageData(burnImg, 0, 0);
+
+    ctx.save();
+    ctx.globalCompositeOperation = "multiply";
+    ctx.drawImage(tempCanvas, 0, 0);
+    ctx.restore();
+
+    // Add soft inner shadow
+    ctx.save();
+    ctx.globalAlpha = 0.25 * depthFactor;
+    ctx.filter = "blur(1.5px)";
+    ctx.drawImage(engr, 1, 1);
+    ctx.restore();
   }
 
-  tctx.putImageData(burnImg, 0, 0);
+  async function renderGlass(ctx, engr, w, h) {
+    const glass = new Image();
+    glass.crossOrigin = "anonymous";
+    glass.src = "/glass_texture.jpeg";
+    await new Promise((r) => {
+      glass.onload = r;
+      glass.onerror = r;
+    });
 
-  ctx.save();
-  ctx.globalCompositeOperation = "multiply";
-  ctx.drawImage(tempCanvas, 0, 0);
-  ctx.restore();
+    const depthFactor = depth / 100;
 
-  // Add soft inner shadow
-  ctx.save();
-  ctx.globalAlpha = 0.25 * depthFactor;
-  ctx.filter = "blur(1.5px)";
-  ctx.drawImage(engr, 1, 1);
-  ctx.restore();
-}
+    // Base glass gradient
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, "#eef3f8");
+    grad.addColorStop(1, "#c9d2da");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
 
+    ctx.globalAlpha = 0.2;
+    ctx.drawImage(glass, 0, 0, w, h);
+    ctx.globalAlpha = 1;
 
+    const ectx = engr.getContext("2d");
+    const ed = ectx.getImageData(0, 0, w, h).data;
+    const frost = ctx.createImageData(w, h);
 
+    for (let i = 0; i < ed.length; i += 4) {
+      const brightness = ed[i];
+      const frostAlpha = Math.pow((255 - brightness) / 255, 1.5 + depthFactor);
+      frost.data[i] = 255;
+      frost.data[i + 1] = 255;
+      frost.data[i + 2] = 255;
+      frost.data[i + 3] = frostAlpha * 255 * depthFactor;
+    }
 
- async function renderGlass(ctx, engr, w, h) {
-  const glass = new Image();
-  glass.crossOrigin = "anonymous";
-  glass.src = "/glass_texture.jpeg";
-  await new Promise((r) => {
-    glass.onload = r;
-    glass.onerror = r;
-  });
+    const frostCanvas = document.createElement("canvas");
+    frostCanvas.width = w;
+    frostCanvas.height = h;
+    frostCanvas.getContext("2d").putImageData(frost, 0, 0);
 
-  const depthFactor = depth / 100;
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.filter = `blur(${2 + depthFactor * 2}px)`;
+    ctx.globalAlpha = 0.6 + depthFactor * 0.3;
+    ctx.drawImage(frostCanvas, 0, 0);
+    ctx.filter = "none";
+    ctx.drawImage(frostCanvas, 0, 0);
+    ctx.restore();
 
-  // Base glass gradient
-  const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, "#eef3f8");
-  grad.addColorStop(1, "#c9d2da");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, w, h);
-
-  ctx.globalAlpha = 0.2;
-  ctx.drawImage(glass, 0, 0, w, h);
-  ctx.globalAlpha = 1;
-
-  const ectx = engr.getContext("2d");
-  const ed = ectx.getImageData(0, 0, w, h).data;
-  const frost = ctx.createImageData(w, h);
-
-  for (let i = 0; i < ed.length; i += 4) {
-    const brightness = ed[i];
-    const frostAlpha = Math.pow((255 - brightness) / 255, 1.5 + depthFactor);
-    frost.data[i] = 255;
-    frost.data[i + 1] = 255;
-    frost.data[i + 2] = 255;
-    frost.data[i + 3] = frostAlpha * 255 * depthFactor;
+    // Border reflection
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = "rgba(255,255,255,0.8)";
+    ctx.shadowColor = "rgba(255,255,255,0.7)";
+    ctx.shadowBlur = 20 * depthFactor;
+    ctx.strokeRect(6, 6, w - 12, h - 12);
   }
-
-  const frostCanvas = document.createElement("canvas");
-  frostCanvas.width = w;
-  frostCanvas.height = h;
-  frostCanvas.getContext("2d").putImageData(frost, 0, 0);
-
-  ctx.save();
-  ctx.globalCompositeOperation = "screen";
-  ctx.filter = `blur(${2 + depthFactor * 2}px)`;
-  ctx.globalAlpha = 0.6 + depthFactor * 0.3;
-  ctx.drawImage(frostCanvas, 0, 0);
-  ctx.filter = "none";
-  ctx.drawImage(frostCanvas, 0, 0);
-  ctx.restore();
-
-  // Border reflection
-  ctx.lineWidth = 8;
-  ctx.strokeStyle = "rgba(255,255,255,0.8)";
-  ctx.shadowColor = "rgba(255,255,255,0.7)";
-  ctx.shadowBlur = 20 * depthFactor;
-  ctx.strokeRect(6, 6, w - 12, h - 12);
-}
-
 
   // --- UTILITIES ---
   function toGray(img) {
@@ -197,7 +194,8 @@ async function renderWood(ctx, engr, w, h) {
   }
 
   function colorDodge(base, top) {
-    const bd = base.data, td = top.data;
+    const bd = base.data,
+      td = top.data;
     for (let i = 0; i < bd.length; i += 4) {
       for (let c = 0; c < 3; c++) {
         const b = bd[i + c];
@@ -216,118 +214,121 @@ async function renderWood(ctx, engr, w, h) {
       d[i] = d[i + 1] = d[i + 2] = Math.min(255, n);
     }
   }
-function handleDownload() {
-  const canvas = previewRef.current;
-  if (!canvas) return;
 
-  const link = document.createElement("a");
-  const timestamp = new Date().toISOString().replace(/[:.-]/g, "_");
-  link.download = `engraved_${material}_${timestamp}.png`;
-  link.href = canvas.toDataURL("image/png");
-  link.click();
-}
-function handleTransparentDownload() {
-  const canvas = previewRef.current;
-  if (!canvas) return;
+  function handleDownload() {
+    const canvas = previewRef.current;
+    if (!canvas) return;
 
-  // Create a transparent version
-  const w = canvas.width;
-  const h = canvas.height;
-  const ctxOriginal = canvas.getContext("2d");
-  const imgData = ctxOriginal.getImageData(0, 0, w, h);
-
-  // New offscreen transparent canvas
-  const offCanvas = document.createElement("canvas");
-  offCanvas.width = w;
-  offCanvas.height = h;
-  const offCtx = offCanvas.getContext("2d");
-
-  // Copy only dark or visible lines
-  const data = imgData.data;
-  const newImg = offCtx.createImageData(w, h);
-  const nd = newImg.data;
-
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i],
-      g = data[i + 1],
-      b = data[i + 2],
-      a = data[i + 3];
-    const brightness = (r + g + b) / 3;
-
-    // Keep engraved lines only (dark or bright)
-    if (brightness < 200 && a > 30) {
-      nd[i] = r;
-      nd[i + 1] = g;
-      nd[i + 2] = b;
-      nd[i + 3] = a;
-    } else {
-      nd[i] = nd[i + 1] = nd[i + 2] = 0;
-      nd[i + 3] = 0; // transparent
-    }
+    const link = document.createElement("a");
+    const timestamp = new Date().toISOString().replace(/[:.-]/g, "_");
+    link.download = `engraved_${material}_${timestamp}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
   }
 
-  offCtx.putImageData(newImg, 0, 0);
+  function handleTransparentDownload() {
+    const canvas = previewRef.current;
+    if (!canvas) return;
 
-  // Download the transparent version
-  const link = document.createElement("a");
-  const timestamp = new Date().toISOString().replace(/[:.-]/g, "_");
-  link.download = `engraved_${material}_transparent_${timestamp}.png`;
-  link.href = offCanvas.toDataURL("image/png");
-  link.click();
-}
+    const w = canvas.width;
+    const h = canvas.height;
+    const ctxOriginal = canvas.getContext("2d");
+    const imgData = ctxOriginal.getImageData(0, 0, w, h);
 
-return (
-  <div style={{ textAlign: "center" }}>
-    {loading && <p>Rendering engraving...</p>}
+    const offCanvas = document.createElement("canvas");
+    offCanvas.width = w;
+    offCanvas.height = h;
+    const offCtx = offCanvas.getContext("2d");
 
-    <canvas
-      ref={previewRef}
-      style={{
-        width: "100%",
-        maxWidth: 820,
-        borderRadius: 14,
-        boxShadow:
-          material === "glass"
-            ? "0 15px 45px rgba(0,0,0,0.25)"
-            : "0 12px 35px rgba(0,0,0,0.35)",
-        background:
-          material === "glass"
-            ? "linear-gradient(180deg,#edf2f6,#cfd7de)"
-            : "linear-gradient(180deg,#c5965a,#8b5e33)",
-      }}
-    />
+    const data = imgData.data;
+    const newImg = offCtx.createImageData(w, h);
+    const nd = newImg.data;
 
-    {!loading && (
-      <div style={{ display: "flex", justifyContent: "center", gap: "12px", marginTop: "16px" }}>
-        <button
-          onClick={handleDownload}
-          className="download-btn"
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i],
+        g = data[i + 1],
+        b = data[i + 2],
+        a = data[i + 3];
+      const brightness = (r + g + b) / 3;
+
+      if (brightness < 200 && a > 30) {
+        nd[i] = r;
+        nd[i + 1] = g;
+        nd[i + 2] = b;
+        nd[i + 3] = a;
+      } else {
+        nd[i] = nd[i + 1] = nd[i + 2] = 0;
+        nd[i + 3] = 0;
+      }
+    }
+
+    offCtx.putImageData(newImg, 0, 0);
+
+    const link = document.createElement("a");
+    const timestamp = new Date().toISOString().replace(/[:.-]/g, "_");
+    link.download = `engraved_${material}_transparent_${timestamp}.png`;
+    link.href = offCanvas.toDataURL("image/png");
+    link.click();
+  }
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      {loading && <p>Rendering engraving...</p>}
+
+      <canvas
+        ref={previewRef}
+        style={{
+          width: "100%",
+          maxWidth: 820,
+          borderRadius: 14,
+          boxShadow:
+            material === "glass"
+              ? "0 15px 45px rgba(0,0,0,0.25)"
+              : "0 12px 35px rgba(0,0,0,0.35)",
+          background:
+            material === "glass"
+              ? "linear-gradient(180deg,#edf2f6,#cfd7de)"
+              : "linear-gradient(180deg,#c5965a,#8b5e33)",
+        }}
+      />
+
+      {!loading && (
+        <div
           style={{
-            background:
-              material === "glass"
-                ? "linear-gradient(90deg, #007cf0, #00dfd8)"
-                : "linear-gradient(90deg, #b97735, #8b5e33)",
+            display: "flex",
+            justifyContent: "center",
+            gap: "12px",
+            marginTop: "16px",
+            flexWrap: "wrap",
           }}
         >
-          ⬇️ Download Normal
-        </button>
+          <button
+            onClick={handleDownload}
+            className="download-btn"
+            style={{
+              background:
+                material === "glass"
+                  ? "linear-gradient(90deg, #007cf0, #00dfd8)"
+                  : "linear-gradient(90deg, #b97735, #8b5e33)",
+            }}
+          >
+            ⬇️ Download Normal
+          </button>
 
-        <button
-          onClick={handleTransparentDownload}
-          className="download-btn"
-          style={{
-            background:
-              material === "glass"
-                ? "linear-gradient(90deg, #4f46e5, #9333ea)"
-                : "linear-gradient(90deg, #8b5e33, #6b3b1e)",
-          }}
-        >
-          🌫️ Transparent PNG
-        </button>
-      </div>
-    )}
-  </div>
-);
-
-
+          <button
+            onClick={handleTransparentDownload}
+            className="download-btn"
+            style={{
+              background:
+                material === "glass"
+                  ? "linear-gradient(90deg, #4f46e5, #9333ea)"
+                  : "linear-gradient(90deg, #8b5e33, #6b3b1e)",
+            }}
+          >
+            🌫️ Transparent PNG
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
