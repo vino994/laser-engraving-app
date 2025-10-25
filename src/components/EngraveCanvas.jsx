@@ -216,26 +216,118 @@ async function renderWood(ctx, engr, w, h) {
       d[i] = d[i + 1] = d[i + 2] = Math.min(255, n);
     }
   }
+function handleDownload() {
+  const canvas = previewRef.current;
+  if (!canvas) return;
 
-  return (
-    <div style={{ textAlign: "center" }}>
-      {loading && <p>Rendering engraving...</p>}
-      <canvas
-        ref={previewRef}
-        style={{
-          width: "100%",
-          maxWidth: 820,
-          borderRadius: 14,
-          boxShadow:
-            material === "glass"
-              ? "0 15px 45px rgba(0,0,0,0.25)"
-              : "0 12px 35px rgba(0,0,0,0.35)",
-          background:
-            material === "glass"
-              ? "linear-gradient(180deg,#edf2f6,#cfd7de)"
-              : "linear-gradient(180deg,#c5965a,#8b5e33)",
-        }}
-      />
-    </div>
-  );
+  const link = document.createElement("a");
+  const timestamp = new Date().toISOString().replace(/[:.-]/g, "_");
+  link.download = `engraved_${material}_${timestamp}.png`;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+}
+function handleTransparentDownload() {
+  const canvas = previewRef.current;
+  if (!canvas) return;
+
+  // Create a transparent version
+  const w = canvas.width;
+  const h = canvas.height;
+  const ctxOriginal = canvas.getContext("2d");
+  const imgData = ctxOriginal.getImageData(0, 0, w, h);
+
+  // New offscreen transparent canvas
+  const offCanvas = document.createElement("canvas");
+  offCanvas.width = w;
+  offCanvas.height = h;
+  const offCtx = offCanvas.getContext("2d");
+
+  // Copy only dark or visible lines
+  const data = imgData.data;
+  const newImg = offCtx.createImageData(w, h);
+  const nd = newImg.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i],
+      g = data[i + 1],
+      b = data[i + 2],
+      a = data[i + 3];
+    const brightness = (r + g + b) / 3;
+
+    // Keep engraved lines only (dark or bright)
+    if (brightness < 200 && a > 30) {
+      nd[i] = r;
+      nd[i + 1] = g;
+      nd[i + 2] = b;
+      nd[i + 3] = a;
+    } else {
+      nd[i] = nd[i + 1] = nd[i + 2] = 0;
+      nd[i + 3] = 0; // transparent
+    }
+  }
+
+  offCtx.putImageData(newImg, 0, 0);
+
+  // Download the transparent version
+  const link = document.createElement("a");
+  const timestamp = new Date().toISOString().replace(/[:.-]/g, "_");
+  link.download = `engraved_${material}_transparent_${timestamp}.png`;
+  link.href = offCanvas.toDataURL("image/png");
+  link.click();
+}
+
+return (
+  <div style={{ textAlign: "center" }}>
+    {loading && <p>Rendering engraving...</p>}
+
+    <canvas
+      ref={previewRef}
+      style={{
+        width: "100%",
+        maxWidth: 820,
+        borderRadius: 14,
+        boxShadow:
+          material === "glass"
+            ? "0 15px 45px rgba(0,0,0,0.25)"
+            : "0 12px 35px rgba(0,0,0,0.35)",
+        background:
+          material === "glass"
+            ? "linear-gradient(180deg,#edf2f6,#cfd7de)"
+            : "linear-gradient(180deg,#c5965a,#8b5e33)",
+      }}
+    />
+
+    {!loading && (
+      <div style={{ display: "flex", justifyContent: "center", gap: "12px", marginTop: "16px" }}>
+        <button
+          onClick={handleDownload}
+          className="download-btn"
+          style={{
+            background:
+              material === "glass"
+                ? "linear-gradient(90deg, #007cf0, #00dfd8)"
+                : "linear-gradient(90deg, #b97735, #8b5e33)",
+          }}
+        >
+          ⬇️ Download Normal
+        </button>
+
+        <button
+          onClick={handleTransparentDownload}
+          className="download-btn"
+          style={{
+            background:
+              material === "glass"
+                ? "linear-gradient(90deg, #4f46e5, #9333ea)"
+                : "linear-gradient(90deg, #8b5e33, #6b3b1e)",
+          }}
+        >
+          🌫️ Transparent PNG
+        </button>
+      </div>
+    )}
+  </div>
+);
+
+
 }
