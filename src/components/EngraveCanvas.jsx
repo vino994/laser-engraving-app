@@ -1,10 +1,61 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { canvasRGBA } from "stackblur-canvas";
 
 export default function EngraveCanvas({ imageSrc, material = "glass", depth = 70 }) {
   const previewRef = useRef();
   const [loading, setLoading] = useState(false);
 
+  // ✅ Wrap processImage in useCallback to fix ESLint dependency warning
+  const processImage = useCallback(
+    async (img) => {
+      const MAX = 1200;
+      let w = img.width,
+        h = img.height;
+      const scale = Math.min(1, MAX / Math.max(w, h));
+      w = Math.round(w * scale);
+      h = Math.round(h * scale);
+
+      const tmp = document.createElement("canvas");
+      tmp.width = w;
+      tmp.height = h;
+      const tctx = tmp.getContext("2d", { willReadFrequently: true });
+      tctx.drawImage(img, 0, 0, w, h);
+
+      const base = tctx.getImageData(0, 0, w, h);
+      toGray(base);
+      const inverted = new ImageData(new Uint8ClampedArray(base.data), w, h);
+      invert(inverted);
+
+      const blurCanvas = document.createElement("canvas");
+      blurCanvas.width = w;
+      blurCanvas.height = h;
+      const bctx = blurCanvas.getContext("2d");
+      bctx.putImageData(inverted, 0, 0);
+      canvasRGBA(blurCanvas, 0, 0, w, h, 12);
+      const blurred = bctx.getImageData(0, 0, w, h);
+
+      const sketch = colorDodge(base, blurred);
+      enhanceContrast(sketch);
+
+      const engr = document.createElement("canvas");
+      engr.width = w;
+      engr.height = h;
+      engr.getContext("2d").putImageData(sketch, 0, 0);
+
+      const canvas = previewRef.current;
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+
+      if (material === "wood") await renderWood(ctx, engr, w, h);
+      else await renderGlass(ctx, engr, w, h);
+
+      setLoading(false);
+    },
+    [material, depth] // ✅ dependencies
+  );
+
+  // ✅ Hook with processImage dependency included
   useEffect(() => {
     if (!imageSrc) return;
     setLoading(true);
@@ -12,60 +63,13 @@ export default function EngraveCanvas({ imageSrc, material = "glass", depth = 70
     const timeout = setTimeout(() => {
       const img = new Image();
       img.crossOrigin = "anonymous";
-      img.onload = () => processImage(img); // ✅ renamed here
+      img.onload = () => processImage(img);
       img.onerror = () => setLoading(false);
       img.src = imageSrc;
-    }, 200); // delay small updates
+    }, 200);
 
     return () => clearTimeout(timeout);
-  }, [imageSrc, material, depth]);
-
-  // ✅ renamed from process() → processImage()
-  async function processImage(img) {
-    const MAX = 1200;
-    let w = img.width,
-      h = img.height;
-    const scale = Math.min(1, MAX / Math.max(w, h));
-    w = Math.round(w * scale);
-    h = Math.round(h * scale);
-
-    const tmp = document.createElement("canvas");
-    tmp.width = w;
-    tmp.height = h;
-    const tctx = tmp.getContext("2d", { willReadFrequently: true });
-    tctx.drawImage(img, 0, 0, w, h);
-
-    const base = tctx.getImageData(0, 0, w, h);
-    toGray(base);
-    const inverted = new ImageData(new Uint8ClampedArray(base.data), w, h);
-    invert(inverted);
-
-    const blurCanvas = document.createElement("canvas");
-    blurCanvas.width = w;
-    blurCanvas.height = h;
-    const bctx = blurCanvas.getContext("2d");
-    bctx.putImageData(inverted, 0, 0);
-    canvasRGBA(blurCanvas, 0, 0, w, h, 12);
-    const blurred = bctx.getImageData(0, 0, w, h);
-
-    const sketch = colorDodge(base, blurred);
-    enhanceContrast(sketch);
-
-    const engr = document.createElement("canvas");
-    engr.width = w;
-    engr.height = h;
-    engr.getContext("2d").putImageData(sketch, 0, 0);
-
-    const canvas = previewRef.current;
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-
-    if (material === "wood") await renderWood(ctx, engr, w, h);
-    else await renderGlass(ctx, engr, w, h);
-
-    setLoading(false);
-  }
+  }, [imageSrc, material, depth, processImage]);
 
   // --- MATERIAL EFFECTS ---
   async function renderWood(ctx, engr, w, h) {
@@ -77,14 +81,12 @@ export default function EngraveCanvas({ imageSrc, material = "glass", depth = 70
       wood.onerror = r;
     });
 
-    // Draw wood background
     ctx.drawImage(wood, 0, 0, w, h);
 
-    // Engraving intensity from slider
     const depthFactor = depth / 100;
-
     const ectx = engr.getContext("2d");
     const ed = ectx.getImageData(0, 0, w, h).data;
+
     const tempCanvas = document.createElement("canvas");
     tempCanvas.width = w;
     tempCanvas.height = h;
@@ -110,7 +112,6 @@ export default function EngraveCanvas({ imageSrc, material = "glass", depth = 70
     ctx.drawImage(tempCanvas, 0, 0);
     ctx.restore();
 
-    // Add soft inner shadow
     ctx.save();
     ctx.globalAlpha = 0.25 * depthFactor;
     ctx.filter = "blur(1.5px)";
@@ -129,7 +130,6 @@ export default function EngraveCanvas({ imageSrc, material = "glass", depth = 70
 
     const depthFactor = depth / 100;
 
-    // Base glass gradient
     const grad = ctx.createLinearGradient(0, 0, 0, h);
     grad.addColorStop(0, "#eef3f8");
     grad.addColorStop(1, "#c9d2da");
@@ -167,7 +167,6 @@ export default function EngraveCanvas({ imageSrc, material = "glass", depth = 70
     ctx.drawImage(frostCanvas, 0, 0);
     ctx.restore();
 
-    // Border reflection
     ctx.lineWidth = 8;
     ctx.strokeStyle = "rgba(255,255,255,0.8)";
     ctx.shadowColor = "rgba(255,255,255,0.7)";
@@ -215,10 +214,10 @@ export default function EngraveCanvas({ imageSrc, material = "glass", depth = 70
     }
   }
 
+  // --- DOWNLOAD HANDLERS ---
   function handleDownload() {
     const canvas = previewRef.current;
     if (!canvas) return;
-
     const link = document.createElement("a");
     const timestamp = new Date().toISOString().replace(/[:.-]/g, "_");
     link.download = `engraved_${material}_${timestamp}.png`;
@@ -271,6 +270,7 @@ export default function EngraveCanvas({ imageSrc, material = "glass", depth = 70
     link.click();
   }
 
+  // --- RENDER ---
   return (
     <div style={{ textAlign: "center" }}>
       {loading && <p>Rendering engraving...</p>}
