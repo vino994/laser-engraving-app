@@ -33,7 +33,7 @@ export default function Home() {
 
   return (
     <div className="app">
-      <h1>Pencil Sketch + Crystal Background</h1>
+      <h1>Custom Design in J Studio</h1>
       <FileUploader onUpload={handleImageUpload} processing={processing} />
 
       <div className="preview-grid">

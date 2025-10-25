@@ -4,47 +4,66 @@ import EngraveCanvas from "./components/EngraveCanvas";
 
 export default function App() {
   const [imageSrc, setImageSrc] = useState(null);
-  const [material, setMaterial] = useState("glass"); // "glass" or "wood"
-  const [showMockup, setShowMockup] = useState(true);
-  const [title, setTitle] = useState("To My Beloved");
-  const [subtitle, setSubtitle] = useState("Happy Anniversary");
+  const [material, setMaterial] = useState("glass");
+  const [depth, setDepth] = useState(70);
 
   return (
-    <div className="app">
-      <h1>Laser Engraving Preview</h1>
-      <p className="muted">Vembu Laser Engraving Preview</p>
+    <div className={`app-container ${material}`}>
+      <header className="header">
+        <h1>Laser Engraving Preview</h1>
+        <p className="subtitle">by J Studio — Custom Design & Precision</p>
+      </header>
 
-      <div className="controls">
+      <div className="control-panel">
         <ImageUploader onUpload={setImageSrc} />
+
         <div className="material-select">
-          <label><input type="radio" name="mat" checked={material==="glass"} onChange={()=>setMaterial("glass")} /> Glass</label>
-          <label><input type="radio" name="mat" checked={material==="wood"} onChange={()=>setMaterial("wood")} /> Wood</label>
+          <label className={material === "glass" ? "active" : ""}>
+            <input
+              type="radio"
+              name="mat"
+              checked={material === "glass"}
+              onChange={() => setMaterial("glass")}
+            />
+            🧊 Glass
+          </label>
+          <label className={material === "wood" ? "active" : ""}>
+            <input
+              type="radio"
+              name="mat"
+              checked={material === "wood"}
+              onChange={() => setMaterial("wood")}
+            />
+            🪵 Wood
+          </label>
         </div>
-        <label className="checkbox">
-          <input type="checkbox" checked={showMockup} onChange={e=>setShowMockup(e.target.checked)} /> Show mockup
-        </label>
-      </div>
 
-      {material === "glass" && showMockup && (
-        <div className="text-controls">
-          <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Top text (optional)" />
-          <input value={subtitle} onChange={e=>setSubtitle(e.target.value)} placeholder="Bottom text (optional)" />
-        </div>
-      )}
-
-      <div className="output">
-        {!imageSrc ? <div className="placeholder">No image uploaded</div> :
-          <EngraveCanvas
-            imageSrc={imageSrc}
-            material={material}
-            mockup={showMockup}
-            title={title}
-            subtitle={subtitle}
+        <div className="depth-control">
+          <label>
+            Engraving Depth: <b>{depth}%</b>
+          </label>
+          <input
+            type="range"
+            min="10"
+            max="100"
+            step="1"
+            value={depth}
+            onChange={(e) => setDepth(Number(e.target.value))}
           />
-        }
+        </div>
       </div>
 
-      <footer className="footer">Export: Custom design to order from J Studio</footer>
+      <div className="preview-wrapper">
+        {!imageSrc ? (
+          <div className="placeholder">Upload an image to begin engraving</div>
+        ) : (
+          <EngraveCanvas imageSrc={imageSrc} material={material} depth={depth} />
+        )}
+      </div>
+
+      <footer className="footer">
+        <p>Export: Custom design order from <strong>J Studio</strong></p>
+      </footer>
     </div>
   );
 }
